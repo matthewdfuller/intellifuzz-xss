@@ -6,7 +6,7 @@
   It determines which characters are available for use in a payload and intelligently generates a
   payload that will properly escape the html if possible.
   Copyright: Matthew Fuller, http://matthewdfuller.com
-  Usage: python fuzz.py -u http://site.com/full-path-with-params?param1=test&param2=test -p param1
+  Usage: python fuzz.py http://site.com/full-path-with-params?param=XSSHEREXSS
 """ 
 from urlparse import urlparse, parse_qs
 from HTMLParser import HTMLParser
