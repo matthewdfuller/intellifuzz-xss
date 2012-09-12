@@ -4,9 +4,9 @@
   Python XSS Fuzzer
   A python based fuzzer that attempts to determine whether XSS can exist given a parameter to fuzz
   It determines which characters are available for use in a payload and intelligently generates a
-  payload that will properly escape the html if possible.
+  payload that will properly escape the html if possible, using the fewest http requests as possible.
   Copyright: Matthew Fuller, http://matthewdfuller.com
-  Usage: python fuzz.py http://site.com/full-path-with-params?param=XSSHEREXSS
+  Usage: python smartfuzz.py http://site.com/full-path-with-params?param=XSSHEREXSS
 """ 
 from urlparse import urlparse, parse_qs
 from HTMLParser import HTMLParser
@@ -14,7 +14,9 @@ import urllib2
 import sys
 import re
 
+#######################################################################################################################
 #GLOBAL VARIABLES
+#######################################################################################################################
 XSSCHECKVAL = "XSSHEREXSS"      #Must be plaintext word unlikely to appear on the page
 CHARS_TO_CHECK = ['"', '\'', '>', '<', ':', ';', '/', '\\', ']', '}']
 ALLOWED_CHARS = []
@@ -29,9 +31,15 @@ IN_SCRIPT_TAG = False
 
 CURRENTLY_OPEN_TAGS = []        #Currently open is modified as the html is parsed
 OPEN_TAGS = []                  #Open is saved once xsscheckval is found
-TAGS_TO_IGNORE = ['html','body','br']             #These tags are normally empty <br/> or should be ignored because don't need to close them but sometimes, not coded properly <br> and missed by the parser.
+TAGS_TO_IGNORE = ['html','body','br','div']             #These tags are normally empty <br/> or should be ignored because don't need to close them but sometimes, not coded properly <br> and missed by the parser.
 TAG_WHITELIST = ['input', 'textarea']             #Tags to break out of specifically
 
+OCCURENCE_NUM = 0
+OCCURENCE_PARSED = 0
+
+#######################################################################################################################
+# MAIN FUNCTION
+#######################################################################################################################
 def main():
     #COMMAND LINE PARSING ARGUMENTS
     if (len(sys.argv) != 2 or XSSCHECKVAL not in sys.argv[1]):
@@ -57,48 +65,64 @@ def main():
     else:
         exit(bcolors.FAIL + "ERROR." + bcolors.ENDC + " Check value not in response. Nothing to test. Exiting...\n")
     
-    #Loop through and run tests for each occurance
+    #Loop through and run tests for each occurence
     for i in range(NUM_REFLECTIONS):
-        print "\n\nTESTING OCCURANCE NUMBER: " + str(i + 1)
-        scan_occurance(init_resp, (i+1))
+        print "\n\nTESTING OCCURENCE NUMBER: " + str(i + 1)
+        global OCCURENCE_NUM
+        OCCURENCE_NUM = i+1
+        scan_occurence(init_resp)
         #Reset globals for next instance
-        global ALLOWED_CHARS, IN_SINGLE_QUOTES, IN_DOUBLE_QUOTES, IN_TAG_ATTRIBUTE, IN_TAG_NON_ATTRIBUTE, IN_SCRIPT_TAG, CURRENTLY_OPEN_TAGS, OPEN_TAGS
-        ALLOWED_CHARS, CURRENTLT_OPEN_TAGS, OPEN_TAGS = [], [], []
+        global ALLOWED_CHARS, IN_SINGLE_QUOTES, IN_DOUBLE_QUOTES, IN_TAG_ATTRIBUTE, IN_TAG_NON_ATTRIBUTE, IN_SCRIPT_TAG, CURRENTLY_OPEN_TAGS, OPEN_TAGS, OCCURENCE_PARSED
+        ALLOWED_CHARS, CURRENTLY_OPEN_TAGS, OPEN_TAGS = [], [], []
         IN_SINGLE_QUOTES, IN_DOUBLE_QUOTES, IN_TAG_ATTRIBUTE, IN_TAG_NON_ATTRIBUTE, IN_SCRIPT_TAG = False, False, False, False, False
+        OCCURENCE_PARSED = 0
     
+#######################################################################################################################
+# OTHER FUNCTIONS
+#######################################################################################################################
+#make_request() makes a URL request given a provided URL and returns the response
+def make_request(in_url):
+    try:
+        req = urllib2.Request(in_url)
+        resp = urllib2.urlopen(req)
+        return resp.read()
+    except:
+        exit("\n" + bcolors.FAIL + "ERROR" + bcolors.ENDC + " Could not open URL. Exiting...\n")
 
-#FUNCTIONS!
-#scan_occurance() runs scan for a reflected instance (a param can be used multiple times on a page)
-def scan_occurance(init_resp, occurance_num):
-    #CHECK FOR ALLOWED CHARACTERS
+#scan_occurence() runs scan for a reflected instance (a param can be used multiple times on a page)
+def scan_occurence(init_resp):
+    #Check for allowed characters
     character_check()
-    
-    #NOW DETERMINE IF PLAINTEXT OR INSIDE A TAG
-    #Basically, want to first determine if we are inside a tag or in plaintext. If in plaintext, jump to attacks.
-    #If in tag, find if in quotes. If so, break out. If not, read left until out of tag. Must account for <a open tags
-    #as well as <textarea> closed tags. Read right. If find </ or /> then inside.
-    
-    #READ RIGHT AND LEFT TO DETERMINE MORE INFO ABOUT LOCATION AND SURROUNDING TAGS AND SYMBOLS
-    XSSCHECKVAL_search = re.search(XSSCHECKVAL, init_resp)
-    XSSCHECKVAL_pos = XSSCHECKVAL_search.start()
-    #print "Found at position: " + str(XSSCHECKVAL_pos)
-    everything_after = init_resp[XSSCHECKVAL_pos:]
-    #print everything_after
-    
-    #Move to left and right of XSSCHECKVAL to see if in quotes using substrings
-    print "\n[Is xss check in single or double quotes?]"
-    if(init_resp[XSSCHECKVAL_pos - 1:XSSCHECKVAL_pos] == "\"" and init_resp[XSSCHECKVAL_pos + (len(XSSCHECKVAL)):XSSCHECKVAL_pos + (len(XSSCHECKVAL) + 1)] == "\""):
-        global IN_DOUBLE_QUOTES
-        IN_DOUBLE_QUOTES = True
-        print "In double quotes."
-    elif(init_resp[XSSCHECKVAL_pos - 1:XSSCHECKVAL_pos] == "'" and init_resp[XSSCHECKVAL_pos + (len(XSSCHECKVAL)):XSSCHECKVAL_pos + (len(XSSCHECKVAL) + 1)] == "'"):
-        global IN_SINGLE_QUOTES
-        IN_SINGLE_QUOTES = True
-        print "In single quotes."
-    else:
-        print "Not in single or double quotes."
 
     #Begin parsing HTML tags to see where located
+    html_parse(init_resp)
+
+#character_check() loops through and tests each character to see if it is being escaped
+#if a character is not escaped, it is added to the ALLOWED_CHARS array which is printed at the end
+def character_check():
+    print "\n[Which chacters are allowed?]"
+    global ALLOWED_CHARS
+    for char_to_check in CHARS_TO_CHECK:
+        check_string = "XSSSTART" + char_to_check + "XSSEND"
+        check_url = URL.replace(XSSCHECKVAL, check_string)
+        check_response = make_request(check_url)
+        
+        #Loop to get to right occurence
+        occurence_counter = 0
+        for m in re.finditer('XSSSTART', check_response):
+            #print( 'found', m.start(), m.end() )
+            occurence_counter += 1
+            if((occurence_counter == OCCURENCE_NUM) and (check_response[m.start():m.start()+15] == check_string)):
+                ALLOWED_CHARS.append(char_to_check)
+                break
+
+    ALLOWED_CHARS_str = ""
+    for char in ALLOWED_CHARS:
+        ALLOWED_CHARS_str += char + " "
+    print "Allowed characters: " + ALLOWED_CHARS_str
+
+#html_parse() locates the xsscheckval and determins where it is in the HTML
+def html_parse(init_resp):
     print "\n[Checking for location of xsscheckval.]"
     parser = MyHTMLParser()
     try:
@@ -110,74 +134,65 @@ def scan_occurance(init_resp, occurance_num):
             print "Inside a script tag."
         elif(e == "attribute"):
             print "Inside a tag attribute." #+ last opened tag
-        print e
+        print str(e) + " tags: " +  str(CURRENTLY_OPEN_TAGS)
     except:
         print bcolors.FAIL + "ERROR." + bcolors.ENDC + " That was bad. Some sort of parsing error happened. Try rerunning?"
+        
+#BREAK OUT FUNCTIONS - used to break out of code and determine xss
+def break_script():
+    print ""
 
-
-#make_request() makes a URL request given a provided URL and returns the response
-def make_request(in_url):
-    try:
-        req = urllib2.Request(in_url)
-        resp = urllib2.urlopen(req)
-        return resp.read()
-    except:
-        exit("\n" + bcolors.FAIL + "ERROR" + bcolors.ENDC + " Could not open URL. Exiting...\n")
-
-#character_check() loops through and tests each character to see if it is being escaped
-#if a character is not escaped, it is added to the ALLOWED_CHARS array which is printed at the end
-def character_check():
-    print "\n[Which chacters are allowed?]"
-    for char_to_check in CHARS_TO_CHECK:
-        #print "Testing char: " + char_to_check
-        check_string = "XSS" + char_to_check + "XSS"
-        check_url = URL.replace(XSSCHECKVAL, check_string)
-        check_response = make_request(check_url)
-        if(check_string in check_response):
-            #print bcolors.OKGREEN + "SUCCESS. " + bcolors.ENDC + "Adding " + char_to_check + " to allowed chars list."
-            global ALLOWED_CHARS
-            ALLOWED_CHARS.append(char_to_check)
-        else:
-            #print bcolors.FAIL + "ERROR. "  + bcolors.ENDC + "Char: " + char_to_check + " was escaped as: "
-            for line in check_response.splitlines():
-                if ("XSS" in line):
-                    print line
-    ALLOWED_CHARS_str = ""
-    for char in ALLOWED_CHARS:
-        ALLOWED_CHARS_str += char + " "
-    print "Allowed characters: " + ALLOWED_CHARS_str
+#######################################################################################################################
+# CLASSES
+#######################################################################################################################
 
 #HTML Parser class
 class MyHTMLParser(HTMLParser):
-    global CURRENTLY_OPEN_TAGS
-    global OPEN_TAGS
-    
     def handle_comment(self, data):
+        global OCCURENCE_PARSED
         if(XSSCHECKVAL in data):
-            raise Exception("comment")
+            OCCURENCE_PARSED += 1
+            if(OCCURENCE_PARSED == OCCURENCE_NUM):
+                raise Exception("comment")
     
     def handle_startendtag(self, tag, attrs):
+        global OCCURENCE_PARSED
+        global OCCURENCE_NUM
         if (XSSCHECKVAL in str(attrs)):
-            raise Exception("Found XSSCHECKVAL")
+            OCCURENCE_PARSED += 1
+            if(OCCURENCE_PARSED == OCCURENCE_NUM):
+                raise Exception("startend tag attribute")
             
     def handle_starttag(self, tag, attrs):
+        global CURRENTLY_OPEN_TAGS
+        global OPEN_TAGS
+        global OCCURENCE_PARSED
         #print CURRENTLY_OPEN_TAGS
         if(tag not in TAGS_TO_IGNORE):
             CURRENTLY_OPEN_TAGS.append(tag)
         if (XSSCHECKVAL in str(attrs)):
             if(tag == "script"):
-                raise Exception("script")
+                OCCURENCE_PARSED += 1
+                if(OCCURENCE_PARSED == OCCURENCE_NUM):
+                    raise Exception("script")
             else:
-                raise Exception("attribute")
-            raise Exception("Found XSSCHECKVAL")
-            
+                OCCURENCE_PARSED += 1
+                if(OCCURENCE_PARSED == OCCURENCE_NUM):
+                    raise Exception("attribute")
+
     def handle_endtag(self, tag):
+        global CURRENTLY_OPEN_TAGS
+        global OPEN_TAGS
+        global OCCURENCE_PARSED
         if(tag not in TAGS_TO_IGNORE):
             CURRENTLY_OPEN_TAGS.remove(tag)
             
     def handle_data(self, data):
+        global OCCURENCE_PARSED
         if (XSSCHECKVAL in data):
-            raise Exception("data")
+            OCCURENCE_PARSED += 1
+            if(OCCURENCE_PARSED == OCCURENCE_NUM):
+                raise Exception("data")
 
 #SET COLORS
 class bcolors:
