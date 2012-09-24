@@ -17,6 +17,10 @@ keyword "XSSHEREXSS" (all caps). Paste the full URL, in quotes, as the first par
 $python intellifuzz "http://site.com/page.php?param=XSSHEREXSS"
 ```
 
+##Testing
+In the /testsuite folder there are a number of PHP pages that can be used to test the scanner against various attack locations. You may download
+and run them on any PHP server. A live copy is also hosted, for the time being, at: http://blasze.com/xsstestsuite/
+
 ##What Can Intellifuzz Find?
 Intellifuzz is currently designed to locate potential XSS attack vectors in:
 * HTML Comments such as ```<!-- comment with reflection here -->```
