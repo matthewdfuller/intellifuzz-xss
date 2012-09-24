@@ -29,7 +29,7 @@ Intellifuzz is currently designed to locate potential XSS attack vectors in:
 Intellifuzz is in an early beta stage and has several limitations:
 * Only one parameter can be scanned at once (i.e. "http://site.com/page.php?param1=XSSHEREXSS&param2=XSSHEREXSS" would not work)
 * Reflections in 404 Error pages are not scanned
-* Limited support for parameter reflection inside <script> tags
+* Limited support for parameter reflection inside ```<script>``` tags
 * XSS in HTML tag attributes without double quotes are not supported (i.e. ```<div attr=param></div>``` or ```<div attr='param'></div>```)
 * POST data is not yet supported
 * Potential false positives
