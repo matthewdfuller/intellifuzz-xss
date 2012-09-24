@@ -18,7 +18,7 @@ include('php-functions.php');
     or inside or closed tags such as &lt;div&gt;&lt;/div&gt; or &lt;span&gt;&lt;/span&gt;. An attribute's value appears in quotes such as in this example:
     &lt;div id=&quot;value&quot;&gt;&lt;/div&gt;. Here, the attribute is "id" and the attribute's value is "value."</p>
     
-    <p>Use the parameters "a" - "d" (one, many, or all at once) to provide input. View the source to see what is happening.</p>
+    <p>Use the parameters "a" - "e" (one, many, or all at once) to provide input. View the source to see what is happening.</p>
     
     <div id="main">
     In this example, the provided, unescaped value is part of the closed tag "div." A successful xss usually means closing this tag and executing a script.<br/>
@@ -30,13 +30,17 @@ include('php-functions.php');
     Use parameter "b".
     <br attr="<?php echo $_GET['b']; ?>" /><br/>
     
-    Here, we have an input empty tag that also filters out script tags. See if you can get it to execute.<br/>
+    Similar to the previous example, the attribute value is in single quotes.<br/>
     Use parameter "c".
-    <input type="textbox" value="<?php echo remove_script($_GET['c']); ?>" /><br/><br/>
+    <br attr='<?php echo $_GET["c"]; ?>' /><br/>
+    
+    Here, we have an input empty tag that also filters out script tags. See if you can get it to execute.<br/>
+    Use parameter "d".
+    <input type="textbox" value="<?php echo remove_script($_GET['d']); ?>" /><br/><br/>
     
     Finally, here is a div using htmlentities to properly filter the input.<br/>
-    Use parameter "d".
-    <div id="d" attr="<?php echo htmlentities($_GET['d']); ?>">
+    Use parameter "e".
+    <div id="d" attr="<?php echo htmlentities($_GET['e']); ?>">
     </div><br/>
     
     </div>

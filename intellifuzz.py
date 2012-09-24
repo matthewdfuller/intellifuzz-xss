@@ -7,7 +7,7 @@
   using most likely payloads first. It also checks if the payload can be injected cleanly (i.e. by
   not breaking code on the page), and if so, generates a full working payload.
   Copyright: Matthew Fuller, http://matthewdfuller.com
-  Usage: python smartfuzz.py http://site.com/full-path-with-params?param=XSSHEREXSS
+  Usage: python intellifuzz.py "http://site.com/full-path-with-params?param=XSSHEREXSS"
 """
 from urlparse import urlparse, parse_qs
 from HTMLParser import HTMLParser
@@ -26,7 +26,7 @@ NUM_REFLECTIONS = 0             #Number of times the parameter value is displaye
 CURRENTLY_OPEN_TAGS = []        #Currently open is modified as the html is parsed
 OPEN_TAGS = []                  #Open is saved once xsscheckval is found
 OPEN_EMPTY_TAG = ""
-TAGS_TO_IGNORE = ['html','body','br']       #These tags are normally empty <br/> or should be ignored because don't need to close them but sometimes, not coded properly <br> and missed by the parser.
+TAGS_TO_IGNORE = ['html','body','br']             #These tags are normally empty <br/> or should be ignored because don't need to close them but sometimes, not coded properly <br> and missed by the parser.
 TAG_WHITELIST = ['input', 'textarea']             #Tags to break out of specifically
 
 OCCURENCE_NUM = 0

@@ -14,7 +14,7 @@ At the moment, Intellifuzz only works with GET parameters. POST support is comin
 keyword "XSSHEREXSS" (all caps). Paste the full URL, in quotes, as the first parameter on the command line, like so:
 
 ```
-$python intellifuzz "http://site.com/page.php?param=XSSHEREXSS"
+$python intellifuzz.py "http://site.com/page.php?param=XSSHEREXSS"
 ```
 
 ##Testing
@@ -37,6 +37,15 @@ Intellifuzz is in an early beta stage and has several limitations:
 * XSS in HTML tag attributes without double quotes are not supported (i.e. ```<div attr=param></div>``` or ```<div attr='param'></div>```)
 * POST data is not yet supported
 * Potential false positives
+
+##Future Features
+* Detect single or double quote attribute usage and dynamically alter payload to match
+* Better script tag support
+* Improve false positive rate
+* Support HTML error pages (404s, etc.)
+* POST data usage
+* Chrome-specific payloads that bypass Chrome's XSS filter
+* Improved CLI error messages that explain exactly why an attack worked or failed
 
 ##Technical Details
 The script works by first reading in the URL. If the keyword, XSSHEREXSS is found for one parameter, it continues. It then tests the URL to see if it can be
