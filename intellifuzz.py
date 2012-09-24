@@ -8,7 +8,7 @@
   not breaking code on the page), and if so, generates a full working payload.
   Copyright: Matthew Fuller, http://matthewdfuller.com
   Usage: python smartfuzz.py http://site.com/full-path-with-params?param=XSSHEREXSS
-""" 
+"""
 from urlparse import urlparse, parse_qs
 from HTMLParser import HTMLParser
 import urllib
@@ -406,9 +406,13 @@ class MyHTMLParser(HTMLParser):
             OCCURENCE_PARSED += 1
             if(OCCURENCE_PARSED == OCCURENCE_NUM):
                 #If last opened tag is a script, send back script_data
-                if(CURRENTLY_OPEN_TAGS[len(CURRENTLY_OPEN_TAGS)-1] == "script"):
-                    raise Exception("script_data")
-                else:
+                #Try/catch is needed in case there are no currently open tags, if not, it's considered data (may occur with invalid html when only param is on page)
+                try:
+                    if(CURRENTLY_OPEN_TAGS[len(CURRENTLY_OPEN_TAGS)-1] == "script"):
+                        raise Exception("script_data")
+                    else:
+                        raise Exception("html_data")
+                except:
                     raise Exception("html_data")
 
 #SET COLORS
